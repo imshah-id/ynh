@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/eyelock/ynh/internal/harness"
 )
 
@@ -34,7 +36,7 @@ func TestBuildDelegateAgent(t *testing.T) {
 	content := BuildDelegateAgent(p, dir, nil, nil, nil, "")
 
 	// Check frontmatter
-	if !strings.Contains(content, "name: team-dev") {
+	if !strings.Contains(content, "name: \"team-dev\"") {
 		t.Error("missing name in frontmatter")
 	}
 	if !strings.Contains(content, "description:") {
@@ -63,7 +65,7 @@ func TestBuildDelegateAgent_NoRulesNoSkills(t *testing.T) {
 
 	content := BuildDelegateAgent(p, dir, nil, nil, nil, "")
 
-	if !strings.Contains(content, "name: minimal") {
+	if !strings.Contains(content, "name: \"minimal\"") {
 		t.Error("missing name")
 	}
 	// Should not have Rules or Skills sections
@@ -124,7 +126,7 @@ func TestAssembleDelegates_WithLocalRepo(t *testing.T) {
 	}
 
 	content := string(data)
-	if !strings.Contains(content, "name: team-ops") {
+	if !strings.Contains(content, "name: \"team-ops\"") {
 		t.Error("agent file missing name")
 	}
 	if !strings.Contains(content, "Always check before deploying.") {
@@ -229,5 +231,25 @@ func TestAssembleDelegates_OwnRepoDelegateAddedLater(t *testing.T) {
 	commitDelegate("beta")
 	if err := assemble("beta"); err != nil {
 		t.Fatalf("delegate committed after the first run must be found: %v", err)
+	}
+}
+
+func TestBuildDelegateAgentFrontmatterRoundTrip(t *testing.T) {
+	for _, description := range []string{"Reviews pull requests: one at a time", `"Quoted" # still description`, "first\nsecond", ""} {
+		t.Run(description, func(t *testing.T) {
+			p := &harness.Harness{Name: "true", Description: description}
+			wantDescription := description
+			if wantDescription == "" {
+				wantDescription = `Delegate harness "true".`
+			}
+			content := BuildDelegateAgent(p, t.TempDir(), nil, nil, nil, "")
+			var fields map[string]any
+			if err := yaml.Unmarshal([]byte(strings.Split(content, "---")[1]), &fields); err != nil {
+				t.Fatal(err)
+			}
+			if fields["name"] != p.Name || fields["description"] != wantDescription {
+				t.Fatalf("frontmatter = %#v, want name %q and description %q", fields, p.Name, wantDescription)
+			}
+		})
 	}
 }

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/eyelock/ynh/internal/plugin"
 )
 
@@ -26,7 +28,7 @@ func TestCursorTransformArtifact_FrontmatterShape(t *testing.T) {
 	c := &Cursor{}
 	_, newData, _ := c.TransformArtifact("rules", "artifact-authoring.md", []byte("body text"))
 
-	want := "---\ndescription: Artifact Authoring\nalwaysApply: true\n---\n\nbody text"
+	want := "---\ndescription: \"Artifact Authoring\"\nalwaysApply: true\n---\n\nbody text"
 	if string(newData) != want {
 		t.Errorf("frontmatter mismatch:\ngot:  %q\nwant: %q", string(newData), want)
 	}
@@ -338,77 +340,77 @@ func TestCursorTransformArtifact_MergesSourceFrontmatter(t *testing.T) {
 		{
 			name: "no frontmatter keeps the defaults",
 			src:  "Never deploy on Friday.\n",
-			want: "---\ndescription: Safety\nalwaysApply: true\n---\n\nNever deploy on Friday.\n",
+			want: "---\ndescription: \"Safety\"\nalwaysApply: true\n---\n\nNever deploy on Friday.\n",
 		},
 		{
 			name: "description replaces the humanised name, name is dropped",
 			src:  "---\nname: safety\ndescription: Production safety rules\n---\n\nNever deploy on Friday.\n",
-			want: "---\ndescription: Production safety rules\nalwaysApply: true\n---\n\nNever deploy on Friday.\n",
+			want: "---\ndescription: \"Production safety rules\"\nalwaysApply: true\n---\n\nNever deploy on Friday.\n",
 		},
 		{
 			name: "quoted description is unquoted",
 			src:  "---\ndescription: \"Safety: production\"\n---\nbody\n",
-			want: "---\ndescription: Safety: production\nalwaysApply: true\n---\n\nbody\n",
+			want: "---\ndescription: \"Safety: production\"\nalwaysApply: true\n---\n\nbody\n",
 		},
 		{
 			name: "folded description becomes one line",
 			src:  "---\ndescription: >\n  Production\n  safety rules\n---\nbody\n",
-			want: "---\ndescription: Production safety rules\nalwaysApply: true\n---\n\nbody\n",
+			want: "---\ndescription: \"Production safety rules\"\nalwaysApply: true\n---\n\nbody\n",
 		},
 		{
 			name: "empty frontmatter keeps the defaults and is removed",
 			src:  "---\n---\nbody\n",
-			want: "---\ndescription: Safety\nalwaysApply: true\n---\n\nbody\n",
+			want: "---\ndescription: \"Safety\"\nalwaysApply: true\n---\n\nbody\n",
 		},
 		{
 			name: "Claude paths block list becomes scoped globs",
 			src:  "---\npaths:\n  - \"src/**/*.ts\"\n  - lib/**\n---\nbody\n",
-			want: "---\ndescription: Safety\nglobs: src/**/*.ts,lib/**\nalwaysApply: false\n---\n\nbody\n",
+			want: "---\ndescription: \"Safety\"\nglobs: src/**/*.ts,lib/**\nalwaysApply: false\n---\n\nbody\n",
 		},
 		{
 			name: "paths flow list keeps braces whole",
 			src:  "---\npaths: [\"src/**/*.{ts,tsx}\", docs/**]\n---\nbody\n",
-			want: "---\ndescription: Safety\nglobs: src/**/*.{ts,tsx},docs/**\nalwaysApply: false\n---\n\nbody\n",
+			want: "---\ndescription: \"Safety\"\nglobs: src/**/*.{ts,tsx},docs/**\nalwaysApply: false\n---\n\nbody\n",
 		},
 		{
 			name: "Cursor globs scalar passes through verbatim and wins over paths",
 			src:  "---\npaths:\n  - other/**\nglobs: src/**/*.{ts,tsx},lib/**\n---\nbody\n",
-			want: "---\ndescription: Safety\nglobs: src/**/*.{ts,tsx},lib/**\nalwaysApply: false\n---\n\nbody\n",
+			want: "---\ndescription: \"Safety\"\nglobs: src/**/*.{ts,tsx},lib/**\nalwaysApply: false\n---\n\nbody\n",
 		},
 		{
 			name: "explicit alwaysApply is honoured",
 			src:  "---\nglobs: src/**\nalwaysApply: true\n---\nbody\n",
-			want: "---\ndescription: Safety\nglobs: src/**\nalwaysApply: true\n---\n\nbody\n",
+			want: "---\ndescription: \"Safety\"\nglobs: src/**\nalwaysApply: true\n---\n\nbody\n",
 		},
 		{
 			name: "explicit alwaysApply false without globs",
 			src:  "---\ndescription: Use when deploying\nalwaysApply: false\n---\nbody\n",
-			want: "---\ndescription: Use when deploying\nalwaysApply: false\n---\n\nbody\n",
+			want: "---\ndescription: \"Use when deploying\"\nalwaysApply: false\n---\n\nbody\n",
 		},
 		{
 			name: "unparseable alwaysApply falls back to the default",
 			src:  "---\nalwaysApply: sometimes\n---\nbody\n",
-			want: "---\ndescription: Safety\nalwaysApply: true\n---\n\nbody\n",
+			want: "---\ndescription: \"Safety\"\nalwaysApply: true\n---\n\nbody\n",
 		},
 		{
 			name: "malformed lines inside a closed block are skipped",
 			src:  "---\nnot yaml at all\n: no key\ndescription: Kept\n---\nbody\n",
-			want: "---\ndescription: Kept\nalwaysApply: true\n---\n\nbody\n",
+			want: "---\ndescription: \"Kept\"\nalwaysApply: true\n---\n\nbody\n",
 		},
 		{
 			name: "unclosed block is body, not frontmatter",
 			src:  "---\ndescription: never closed\nbody\n",
-			want: "---\ndescription: Safety\nalwaysApply: true\n---\n\n---\ndescription: never closed\nbody\n",
+			want: "---\ndescription: \"Safety\"\nalwaysApply: true\n---\n\n---\ndescription: never closed\nbody\n",
 		},
 		{
 			name: "CRLF and BOM are recognised",
 			src:  "\ufeff---\r\ndescription: Windows rule\r\n---\r\nbody\r\n",
-			want: "---\ndescription: Windows rule\nalwaysApply: true\n---\n\nbody\r\n",
+			want: "---\ndescription: \"Windows rule\"\nalwaysApply: true\n---\n\nbody\r\n",
 		},
 		{
 			name: "a thematic break later in the body is left alone",
 			src:  "intro\n\n---\n\nmore\n",
-			want: "---\ndescription: Safety\nalwaysApply: true\n---\n\nintro\n\n---\n\nmore\n",
+			want: "---\ndescription: \"Safety\"\nalwaysApply: true\n---\n\nintro\n\n---\n\nmore\n",
 		},
 	}
 	c := &Cursor{}
@@ -423,6 +425,25 @@ func TestCursorTransformArtifact_MergesSourceFrontmatter(t *testing.T) {
 			}
 			if n := strings.Count(string(got), "alwaysApply:"); n != 1 {
 				t.Errorf("want exactly one frontmatter block, alwaysApply appears %d times:\n%s", n, got)
+			}
+		})
+	}
+}
+
+func TestCursorRuleDescriptionRoundTrip(t *testing.T) {
+	for _, description := range []string{"Reviews pull requests: one at a time", `"Quoted" # still description`, "true"} {
+		t.Run(description, func(t *testing.T) {
+			source, err := yaml.Marshal(map[string]string{"description": description})
+			if err != nil {
+				t.Fatal(err)
+			}
+			output := cursorRule("rule", []byte("---\n"+string(source)+"---\nbody\n"))
+			var fields map[string]any
+			if err := yaml.Unmarshal([]byte(strings.Split(string(output), "---")[1]), &fields); err != nil {
+				t.Fatal(err)
+			}
+			if fields["description"] != description {
+				t.Fatalf("description = %#v, want %q", fields["description"], description)
 			}
 		})
 	}
